@@ -16,10 +16,6 @@ import { createQuizRouter } from './routes/quizzes.js';
 import { adminAuth } from './routes/middleware.js';
 import type { Quiz } from '@amadeus/shared';
 
-// ---------------------------------------------------------------------------
-// Express app
-// ---------------------------------------------------------------------------
-
 const app = express();
 app.disable('x-powered-by');
 app.use(helmet());
@@ -29,15 +25,7 @@ if (isDev) {
   app.use(cors({ origin: 'http://localhost:5173' }));
 }
 
-// ---------------------------------------------------------------------------
-// Game manager (singleton for this process)
-// ---------------------------------------------------------------------------
-
 export const gameManager = new GameManager();
-
-// ---------------------------------------------------------------------------
-// Health endpoint (before DB is ready, so it stays synchronous)
-// ---------------------------------------------------------------------------
 
 app.get('/healthz', (_req, res) => {
   res.json({
@@ -46,10 +34,6 @@ app.get('/healthz', (_req, res) => {
     players: gameManager.totalPlayers(),
   });
 });
-
-// ---------------------------------------------------------------------------
-// HTTP + Socket.IO
-// ---------------------------------------------------------------------------
 
 const httpServer = createServer(app);
 
@@ -60,32 +44,39 @@ export const io = new Server(httpServer, {
 });
 
 // ---------------------------------------------------------------------------
-// DB + quiz routes (async init, mounted before sockets connect in practice)
+// DB + quiz routes
 // ---------------------------------------------------------------------------
 
 let _dbReady = false;
 const _quizStoreFallback = new Map<string, Quiz>();
 
-/** Fallback for integration tests that don't go through the HTTP layer. */
 export function registerQuiz(quiz: Quiz): void {
   _quizStoreFallback.set(quiz.id, quiz);
 }
 
 export async function initDb(dbPath = config.dbPath): Promise<void> {
-  const db = await openDb(dbPath);
-  const quizRouter = createQuizRouter(db);
-  app.use('/api/quizzes', adminAuth, quizRouter);
-  _dbReady = true;
+  console.log(`[db] opening database at: ${dbPath}`);
+  try {
+    const db = await openDb(dbPath);
+    console.log(`[db] database opened successfully`);
+    const quizRouter = createQuizRouter(db);
+    // API routes must be mounted BEFORE the static file catch-all
+    app.use('/api/quizzes', adminAuth, quizRouter);
+    _dbReady = true;
+    console.log(`[db] quiz routes mounted`);
 
-  // After DB is ready, teach the socket layer to load quizzes from DB
-  _loadQuizFromDb = (id: string) => {
-    const result = db.exec('SELECT json FROM quizzes WHERE id = ?', [id]);
-    const row = result[0];
-    if (!row) return undefined;
-    const val = row.values[0];
-    if (!val) return undefined;
-    return JSON.parse(val[0] as string) as Quiz;
-  };
+    _loadQuizFromDb = (id: string) => {
+      const result = db.exec('SELECT json FROM quizzes WHERE id = ?', [id]);
+      const row = result[0];
+      if (!row) return undefined;
+      const val = row.values[0];
+      if (!val) return undefined;
+      return JSON.parse(val[0] as string) as Quiz;
+    };
+  } catch (err) {
+    console.error(`[db] FAILED to open database:`, err);
+    throw err;
+  }
 }
 
 let _loadQuizFromDb: ((id: string) => Quiz | undefined) | null = null;
@@ -113,30 +104,33 @@ io.on('connection', (socket) => {
   });
 });
 
-// Prune stale join rate-limit records every minute
 setInterval(pruneJoinRecords, 60_000);
 
 // ---------------------------------------------------------------------------
-// Start
+// Start — DB first, then static files, then listen
 // ---------------------------------------------------------------------------
 
-// In production serve the compiled React app as static files
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const webDist = join(__dirname, '..', '..', '..', 'apps', 'web', 'dist');
-if (!isDev && existsSync(webDist)) {
-  app.use(express.static(webDist));
-  // Fall back to index.html for client-side routes
-  app.get('*', (_req, res) => {
-    res.sendFile(join(webDist, 'index.html'));
-  });
-}
-
 if (process.env.NODE_ENV !== 'test') {
-  void initDb().then(() => {
-    httpServer.listen(config.port, () => {
-      console.log(`Amadeus Apex Arena server listening on port ${config.port}`);
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  const webDist = join(__dirname, '..', '..', '..', 'apps', 'web', 'dist');
+
+  initDb()
+    .then(() => {
+      // Static files and catch-all mounted AFTER API routes
+      if (!isDev && existsSync(webDist)) {
+        app.use(express.static(webDist));
+        app.get('*', (_req, res) => {
+          res.sendFile(join(webDist, 'index.html'));
+        });
+      }
+      httpServer.listen(config.port, () => {
+        console.log(`Amadeus Apex Arena listening on port ${config.port}`);
+      });
+    })
+    .catch((err: unknown) => {
+      console.error('Failed to initialise database, exiting:', err);
+      process.exit(1);
     });
-  });
 }
 
 export { httpServer, app, _dbReady };

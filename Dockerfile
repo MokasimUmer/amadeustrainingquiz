@@ -46,7 +46,6 @@ COPY profanity.txt* ./
 
 # SQLite volume mount point
 RUN mkdir -p /data
-VOLUME ["/data"]
 
 EXPOSE 3000
 

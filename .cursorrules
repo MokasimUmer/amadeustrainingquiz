@@ -1,0 +1,10 @@
+You are building "Amadeus Apex Arena", a real-time quiz app. Follow SPEC.md exactly.
+- TypeScript strict mode. No `any`.
+- All socket payloads are validated with Zod schemas from packages/shared.
+- The server is the single source of truth for time, phase and scores. Never trust client time or client-computed scores.
+- Never send correct answers to players before the reveal event.
+- Keep game logic in pure, testable functions; keep socket handlers thin.
+- Every new function in scoring/leaderboard gets a Vitest test.
+- Minimalist UI: Tailwind utility classes using the CSS variables in theme/tokens.css. No new UI libraries without asking.
+- Respect prefers-reduced-motion. Never use color as the only signal.
+- Work milestone by milestone. After each, run lint, typecheck and tests, then summarize what changed.

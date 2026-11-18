@@ -1,0 +1,33 @@
+{
+  "name": "amadeustrainingquiz",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build -w @amadeus/shared && concurrently -n shared,server,web -c cyan,blue,magenta \"npm run dev -w @amadeus/shared\" \"npm run dev -w @amadeus/server\" \"npm run dev -w @amadeus/web\"",
+    "build": "npm run build -w @amadeus/shared && npm run build -w @amadeus/server && npm run build -w @amadeus/web",
+    "lint": "eslint .",
+    "typecheck": "npm run build -w @amadeus/shared && npm run typecheck -w @amadeus/shared && npm run typecheck -w @amadeus/server && npm run typecheck -w @amadeus/web",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.28.0",
+    "@playwright/test": "^1.52.0",
+    "concurrently": "^9.1.2",
+    "eslint": "^9.28.0",
+    "eslint-config-prettier": "^10.1.5",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.33.1",
+    "vitest": "^3.2.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@amadeus/server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "loadtest": "tsx scripts/loadtest.ts"
+  },
+  "dependencies": {
+    "@amadeus/shared": "*",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "helmet": "^8.1.0",
+    "sql.js": "^1.12.0",
+    "socket.io": "^4.8.1",
+    "zod": "^3.25.56"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.18",
+    "@types/express": "^4.17.22",
+    "@types/node": "^22.15.29",
+    "@types/sql.js": "^1.4.11",
+    "socket.io-client": "^4.8.1",
+    "tsx": "^4.19.4"
+  }
+}

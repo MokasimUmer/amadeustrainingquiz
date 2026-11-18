@@ -16,14 +16,17 @@ export function Dashboard() {
 
   useEffect(() => {
     setLoading(true);
+    setError('');
     listQuizzes(password)
       .then(setQuizzes)
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
-        if (msg.startsWith('401')) {
+        if (msg.includes('401')) {
+          // Wrong password — drop back to auth gate
           clearAuth();
         } else {
-          setError('Could not load quizzes.');
+          // Show the raw error so we can diagnose it
+          setError(msg);
         }
       })
       .finally(() => setLoading(false));
@@ -52,9 +55,21 @@ export function Dashboard() {
       </div>
 
       {loading && <p className="mt-10 text-muted">Loading…</p>}
-      {error && <p className="mt-10 text-bad">{error}</p>}
 
-      {!loading && quizzes.length === 0 && (
+      {error && (
+        <div className="mt-10 rounded-arena bg-surface p-4">
+          <p className="text-sm font-semibold text-bad">Failed to load quizzes</p>
+          <p className="mt-1 font-mono text-xs text-muted break-all">{error}</p>
+          <button
+            onClick={() => { setError(''); setLoading(true); listQuizzes(password).then(setQuizzes).catch((e: unknown) => setError(String(e))).finally(() => setLoading(false)); }}
+            className="mt-3 text-sm text-brand underline-offset-4 hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && quizzes.length === 0 && (
         <p className="mt-10 text-muted">No quizzes yet. Create one to get started.</p>
       )}
 

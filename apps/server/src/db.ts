@@ -1,14 +1,6 @@
-/**
- * SQLite database bootstrap via sql.js (pure WASM, no native build needed).
- *
- * The database is loaded from disk on startup (if the file exists) and
- * flushed back to disk after every write operation.  For v1 single-instance
- * deployments this is correct and simple; a Redis-backed approach would be
- * needed for multi-instance scaling.
- */
-
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
+import { createRequire } from 'node:module';
 import initSqlJs from 'sql.js';
 import type { Database } from 'sql.js';
 
@@ -18,14 +10,24 @@ let _db: Database | null = null;
 let _dbPath = ':memory:';
 
 /**
- * Initialises (or returns) the shared Database instance.
- * Call once at server startup; subsequent calls return the cached instance.
+ * Resolve the sql.js WASM file path explicitly so it works in Docker where
+ * the default fetch-based loader cannot find the file.
  */
+function getWasmPath(): string {
+  const require = createRequire(import.meta.url);
+  const sqlJsDir = dirname(require.resolve('sql.js'));
+  return join(sqlJsDir, 'sql-wasm.wasm');
+}
+
 export async function openDb(filePath = ':memory:'): Promise<Database> {
   if (_db) return _db;
 
   _dbPath = filePath;
-  const SQL = await initSqlJs();
+
+  const wasmPath = getWasmPath();
+  const SQL = await initSqlJs({
+    locateFile: () => wasmPath,
+  });
 
   if (filePath !== ':memory:' && existsSync(filePath)) {
     const fileBuffer = readFileSync(filePath);
@@ -38,14 +40,12 @@ export async function openDb(filePath = ':memory:'): Promise<Database> {
   return _db;
 }
 
-/** Closes and destroys the current DB instance (useful for tests). */
 export function closeDb(): void {
   _db?.close();
   _db = null;
   _dbPath = ':memory:';
 }
 
-/** Persists the in-memory database to the configured file path. */
 export function persistDb(): void {
   if (!_db || _dbPath === ':memory:') return;
   const data = _db.export();
@@ -53,10 +53,6 @@ export function persistDb(): void {
   mkdirSync(dir, { recursive: true });
   writeFileSync(_dbPath, Buffer.from(data));
 }
-
-// ---------------------------------------------------------------------------
-// Schema
-// ---------------------------------------------------------------------------
 
 function _migrate(db: Database): void {
   db.run(`
